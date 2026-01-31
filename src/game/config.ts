@@ -1,5 +1,11 @@
 import type { Types } from 'phaser';
 import { GameScene } from './scenes/GameScene';
+import {
+  GAME_WIDTH,
+  GAME_HEIGHT,
+  GRAVITY_Y,
+  BACKGROUND_COLOR,
+} from './constants';
 
 /**
  * Phaser game configuration.
@@ -7,10 +13,10 @@ import { GameScene } from './scenes/GameScene';
  */
 export const gameConfig: Types.Core.GameConfig = {
   type: Phaser.AUTO,
-  width: 320,
-  height: 180,
+  width: GAME_WIDTH,
+  height: GAME_HEIGHT,
   parent: 'game-container',
-  backgroundColor: '#1a1a2e',
+  backgroundColor: BACKGROUND_COLOR,
   scale: {
     mode: Phaser.Scale.FIT,
     autoCenter: Phaser.Scale.CENTER_BOTH,
@@ -21,7 +27,7 @@ export const gameConfig: Types.Core.GameConfig = {
   physics: {
     default: 'arcade',
     arcade: {
-      gravity: { x: 0, y: 600 },
+      gravity: { x: 0, y: GRAVITY_Y },
       debug: false,
     },
   },

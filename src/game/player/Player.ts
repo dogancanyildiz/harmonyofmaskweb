@@ -1,26 +1,32 @@
 import type { Scene } from 'phaser';
 import type { Physics } from 'phaser';
+import {
+  PLAYER_WIDTH,
+  PLAYER_STAND_HEIGHT,
+  PLAYER_CROUCH_HEIGHT,
+  PLAYER_MOVE_SPEED,
+  PLAYER_CROUCH_SPEED,
+  PLAYER_JUMP_FORCE,
+  PLAYER_COLOR,
+} from '../constants';
 
-const MOVE_SPEED = 200;
-const CROUCH_SPEED = 80;
-const JUMP_FORCE = -350;
-const STAND_HEIGHT = 24;
-const CROUCH_HEIGHT = 12;
+type PlayerKeys = {
+  a: Phaser.Input.Keyboard.Key;
+  d: Phaser.Input.Keyboard.Key;
+  w: Phaser.Input.Keyboard.Key;
+  s: Phaser.Input.Keyboard.Key;
+  space: Phaser.Input.Keyboard.Key;
+};
 
 /**
- * Player character: left/right, jump, crouch (Down/S). Uses Arcade Physics.
+ * Player character: movement (A/D or arrows), jump (W/Space/Up), crouch (S/Down).
+ * Uses Arcade Physics; size and speeds from constants.
  */
 export class Player {
   private body: Physics.Arcade.Body;
   private rect: Phaser.GameObjects.Rectangle;
   private cursors: Phaser.Types.Input.Keyboard.CursorKeys | null = null;
-  private keys: {
-    a: Phaser.Input.Keyboard.Key;
-    d: Phaser.Input.Keyboard.Key;
-    w: Phaser.Input.Keyboard.Key;
-    s: Phaser.Input.Keyboard.Key;
-    space: Phaser.Input.Keyboard.Key;
-  } | null = null;
+  private keys: PlayerKeys | null = null;
   private isCrouching = false;
 
   constructor(
@@ -28,12 +34,12 @@ export class Player {
     x: number,
     y: number
   ) {
-    const rect = scene.add.rectangle(x, y, 16, STAND_HEIGHT, 0x4ade80);
+    const rect = scene.add.rectangle(x, y, PLAYER_WIDTH, PLAYER_STAND_HEIGHT, PLAYER_COLOR);
     scene.add.existing(rect);
     (scene.physics as Physics.Arcade.ArcadePhysics).add.existing(rect);
     const body = (rect as unknown as { body: Physics.Arcade.Body }).body;
     body.setCollideWorldBounds(true);
-    body.setSize(16, STAND_HEIGHT);
+    body.setSize(PLAYER_WIDTH, PLAYER_STAND_HEIGHT);
     body.setOffset(0, 0);
     this.body = body;
     this.rect = rect;
@@ -60,23 +66,23 @@ export class Player {
 
     if (crouch && !this.isCrouching) {
       this.isCrouching = true;
-      this.body.setSize(16, CROUCH_HEIGHT);
-      this.body.setOffset(0, STAND_HEIGHT - CROUCH_HEIGHT);
-      this.rect.setSize(16, CROUCH_HEIGHT);
+      this.body.setSize(PLAYER_WIDTH, PLAYER_CROUCH_HEIGHT);
+      this.body.setOffset(0, PLAYER_STAND_HEIGHT - PLAYER_CROUCH_HEIGHT);
+      this.rect.setSize(PLAYER_WIDTH, PLAYER_CROUCH_HEIGHT);
     } else if (!crouch && this.isCrouching) {
       this.isCrouching = false;
-      this.body.setSize(16, STAND_HEIGHT);
+      this.body.setSize(PLAYER_WIDTH, PLAYER_STAND_HEIGHT);
       this.body.setOffset(0, 0);
-      this.rect.setSize(16, STAND_HEIGHT);
+      this.rect.setSize(PLAYER_WIDTH, PLAYER_STAND_HEIGHT);
     }
 
-    const speed = this.isCrouching ? CROUCH_SPEED : MOVE_SPEED;
+    const speed = this.isCrouching ? PLAYER_CROUCH_SPEED : PLAYER_MOVE_SPEED;
     if (left) this.body.setVelocityX(-speed);
     else if (right) this.body.setVelocityX(speed);
     else this.body.setVelocityX(0);
 
     const onGround = this.body.blocked.down || this.body.touching.down;
-    if (jump && onGround && !this.isCrouching) this.body.setVelocityY(JUMP_FORCE);
+    if (jump && onGround && !this.isCrouching) this.body.setVelocityY(PLAYER_JUMP_FORCE);
   }
 
   /** The Arcade body (e.g. for velocity). */

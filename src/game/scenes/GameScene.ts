@@ -1,145 +1,199 @@
 import { Scene } from 'phaser';
+import type { Tilemaps } from 'phaser';
 import { Player } from '../player/Player';
 import { MaskSystem } from '../masks/MaskSystem';
 import { MaskType } from '../masks/MaskType';
 import type { MaskLayerEntry } from '../masks/MaskSystem';
 import { Hotbar } from '../ui/Hotbar';
-
-const LEVEL_MAP_KEYS: Record<number, string> = {
-  1: 'tilemap',
-  2: 'tilemap2',
-  3: 'tilemap3',
-  4: 'tilemap4',
-  5: 'tilemap5',
-};
-
-/** Bölüm 3’ten itibaren boşluğa düşme = ölüm (bölüm yeniden). */
-const DEATH_FALL_LEVEL_MIN = 3;
-/** Harita altına bu kadar düşünce ölüm. */
-const DEATH_FALL_MARGIN = 32;
-/** Bölüm 3+ için dünya altı boşluk (oyuncu düşebilsin diye). */
-const VOID_HEIGHT = 200;
+import {
+  SCENE_KEY_GAME,
+  LEVEL_MAP_KEYS,
+  LEVEL_MIN,
+  LEVEL_MAX,
+  TILESET_IMAGE_KEY,
+  LAYER_NAME_GREEN,
+  LAYER_NAME_RED,
+  DEATH_FALL_LEVEL_MIN,
+  DEATH_FALL_MARGIN,
+  VOID_HEIGHT,
+  SPAWN_OFFSET_X,
+  SPAWN_OFFSET_Y,
+  GOAL_ZONE_WIDTH,
+  GOAL_ZONE_HEIGHT,
+  GOAL_ZONE_OFFSET_RIGHT,
+  GOAL_ZONE_OFFSET_BOTTOM,
+  GOAL_COLOR_NORMAL,
+  GOAL_COLOR_FINAL,
+  GOAL_ALPHA,
+  CAMERA_FOLLOW_LERP,
+  LAYER_TINT_RED,
+  LAYER_TINT_GREEN,
+} from '../constants';
 
 /**
- * Game scene: 5 bölüm. Hedefle sonraki bölüme geçiş; bölüm 3+ düşme = ölüm.
+ * Main game scene: multiple levels, goal zone to advance, death by fall from level 3+.
  */
 export class GameScene extends Scene {
   private player!: Player;
   private maskSystem!: MaskSystem;
   private hotbar!: Hotbar;
-  private currentLevel = 1;
+  private currentLevel = LEVEL_MIN;
   private mapHeightPx = 0;
+  private mapWidthPx = 0;
+  private goalZone: Phaser.Geom.Rectangle | null = null;
+  private goalGraphics: Phaser.GameObjects.Graphics | null = null;
 
   constructor() {
-    super({ key: 'GameScene' });
+    super({ key: SCENE_KEY_GAME });
   }
 
   preload(): void {
     this.load.setBaseURL('/assets/');
-    this.load.image('tileset', 'tileset.png');
-    this.load.tilemapTiledJSON('tilemap', 'tilemap.json');
-    this.load.tilemapTiledJSON('tilemap2', 'tilemap2.json');
-    this.load.tilemapTiledJSON('tilemap3', 'tilemap3.json');
-    this.load.tilemapTiledJSON('tilemap4', 'tilemap4.json');
-    this.load.tilemapTiledJSON('tilemap5', 'tilemap5.json');
+    this.load.image(TILESET_IMAGE_KEY, 'tileset.png');
+    for (const mapKey of Object.values(LEVEL_MAP_KEYS)) {
+      this.load.tilemapTiledJSON(mapKey, `${mapKey}.json`);
+    }
   }
 
   create(data?: { level?: number }): void {
-    this.currentLevel = Math.min(5, Math.max(1, data?.level ?? 1));
+    this.currentLevel = Phaser.Math.Clamp(data?.level ?? LEVEL_MIN, LEVEL_MIN, LEVEL_MAX);
     const mapKey = LEVEL_MAP_KEYS[this.currentLevel];
 
     this.cameras.main.setRoundPixels(true);
 
+    const { map, greenLayer, redLayer } = this.setupMap(mapKey);
+    if (!greenLayer || !redLayer) return;
+
+    this.mapWidthPx = map.widthInPixels;
+    this.mapHeightPx = map.heightInPixels;
+
+    this.setupWorldBounds();
+    this.player = new Player(this, SPAWN_OFFSET_X, this.mapHeightPx - SPAWN_OFFSET_Y);
+    this.setupColliders(greenLayer, redLayer);
+    this.maskSystem = new MaskSystem(
+      [
+        { maskType: MaskType.Red, layer: redLayer },
+        { maskType: MaskType.Green, layer: greenLayer },
+      ],
+      MaskType.Red
+    );
+    this.setupHotbar();
+    this.setupCamera();
+    this.setupGoalZone();
+  }
+
+  private setupMap(mapKey: string): {
+    map: Phaser.Tilemaps.Tilemap;
+    greenLayer: Tilemaps.TilemapLayer | null;
+    redLayer: Tilemaps.TilemapLayer | null;
+  } {
     const map = this.make.tilemap({ key: mapKey });
-    const tileset = map.addTilesetImage('tileset', 'tileset');
+    const tileset = map.addTilesetImage(TILESET_IMAGE_KEY, TILESET_IMAGE_KEY);
     if (!tileset) {
       console.error('Tileset not found');
-      return;
+      return { map, greenLayer: null, redLayer: null };
     }
 
-    const greenLayer = map.createLayer('green', tileset, 0, 0);
-    const redLayer = map.createLayer('red', tileset, 0, 0);
+    const greenLayer = map.createLayer(LAYER_NAME_GREEN, tileset, 0, 0);
+    const redLayer = map.createLayer(LAYER_NAME_RED, tileset, 0, 0);
     if (!greenLayer || !redLayer) {
       console.error('Layers green/red not found');
-      return;
+      return { map, greenLayer: null, redLayer: null };
     }
 
     greenLayer.setCollisionByExclusion([-1]);
     redLayer.setCollisionByExclusion([-1]);
+    redLayer.setTint(LAYER_TINT_RED);
+    greenLayer.setTint(LAYER_TINT_GREEN);
 
-    // Katman renkleri: kırmızı ve yeşil (tileset beyaz, tint ile renk veriyoruz)
-    redLayer.setTint(0xef4444);
-    greenLayer.setTint(0x22c55e);
+    return { map, greenLayer, redLayer };
+  }
 
-    const mapWidthPx = map.widthInPixels;
-    this.mapHeightPx = map.heightInPixels;
+  private setupWorldBounds(): void {
     const worldHeight =
       this.currentLevel >= DEATH_FALL_LEVEL_MIN
         ? this.mapHeightPx + VOID_HEIGHT
         : this.mapHeightPx;
-    this.physics.world.setBounds(0, 0, mapWidthPx, worldHeight);
+    this.physics.world.setBounds(0, 0, this.mapWidthPx, worldHeight);
+  }
 
-    this.player = new Player(this, 48, this.mapHeightPx - 48);
-
+  private setupColliders(
+    greenLayer: Tilemaps.TilemapLayer,
+    redLayer: Tilemaps.TilemapLayer
+  ): void {
     const physics = this.physics as Phaser.Physics.Arcade.ArcadePhysics;
-    physics.add.collider(this.player.getGameObject(), greenLayer);
-    physics.add.collider(this.player.getGameObject(), redLayer);
+    const go = this.player.getGameObject();
+    physics.add.collider(go, greenLayer);
+    physics.add.collider(go, redLayer);
+  }
 
-    // 1. engel = kırmızı, 1. maske = kırmızı (varsayılan)
-    const entries: MaskLayerEntry[] = [
-      { maskType: MaskType.Red, layer: redLayer },
-      { maskType: MaskType.Green, layer: greenLayer },
-    ];
-    this.maskSystem = new MaskSystem(entries, MaskType.Red);
-
+  private setupHotbar(): void {
     const gameWidth = this.cameras.main.width;
     const gameHeight = this.cameras.main.height;
-    this.hotbar = new Hotbar(this, gameWidth, gameHeight, (slotIndex, maskType) => {
+    this.hotbar = new Hotbar(this, gameWidth, gameHeight, (_, maskType) => {
       if (maskType !== null) this.maskSystem.setActiveMask(maskType);
     });
     this.hotbar.setSelectedSlot(0);
-
-    this.cameras.main.setBounds(0, 0, mapWidthPx, this.mapHeightPx);
-    this.cameras.main.startFollow(this.player.getGameObject(), true, 0.1, 0.1);
-
-    const hasGoal = this.currentLevel >= 1 && this.currentLevel <= 5;
-    if (hasGoal) {
-      this.goalZone = new Phaser.Geom.Rectangle(mapWidthPx - 32, this.mapHeightPx - 80, 40, 80);
-      this.goalGraphics = this.add.graphics();
-      this.goalGraphics.fillStyle(this.currentLevel === 5 ? 0xfbbf24 : 0x22c55e, 0.35);
-      this.goalGraphics.fillRect(this.goalZone.x, this.goalZone.y, this.goalZone.width, this.goalZone.height);
-    } else {
-      this.goalZone = null;
-      this.goalGraphics = null;
-    }
   }
 
-  private goalZone: Phaser.Geom.Rectangle | null = null;
-  private goalGraphics: Phaser.GameObjects.Graphics | null = null;
+  private setupCamera(): void {
+    this.cameras.main.setBounds(0, 0, this.mapWidthPx, this.mapHeightPx);
+    this.cameras.main.startFollow(
+      this.player.getGameObject(),
+      true,
+      CAMERA_FOLLOW_LERP,
+      CAMERA_FOLLOW_LERP
+    );
+  }
+
+  private setupGoalZone(): void {
+    this.goalZone = new Phaser.Geom.Rectangle(
+      this.mapWidthPx - GOAL_ZONE_OFFSET_RIGHT,
+      this.mapHeightPx - GOAL_ZONE_OFFSET_BOTTOM,
+      GOAL_ZONE_WIDTH,
+      GOAL_ZONE_HEIGHT
+    );
+    this.goalGraphics = this.add.graphics();
+    const color = this.currentLevel === LEVEL_MAX ? GOAL_COLOR_FINAL : GOAL_COLOR_NORMAL;
+    this.goalGraphics.fillStyle(color, GOAL_ALPHA);
+    this.goalGraphics.fillRect(
+      this.goalZone.x,
+      this.goalZone.y,
+      this.goalZone.width,
+      this.goalZone.height
+    );
+  }
 
   update(): void {
     this.player.update();
-
     const body = this.player.getBody();
 
-    const playerBottom = body.y + body.height;
-    if (
-      this.currentLevel >= DEATH_FALL_LEVEL_MIN &&
-      playerBottom > this.mapHeightPx + DEATH_FALL_MARGIN
-    ) {
-      this.scene.start('GameScene', { level: this.currentLevel });
+    if (this.checkDeathByFall(body)) {
+      this.scene.start(SCENE_KEY_GAME, { level: this.currentLevel });
       return;
     }
 
-    if (this.goalZone) {
-      const playerRect = new Phaser.Geom.Rectangle(body.x, body.y, body.width, body.height);
-      if (Phaser.Geom.Rectangle.Overlaps(playerRect, this.goalZone)) {
-        if (this.currentLevel < 5) {
-          this.scene.start('GameScene', { level: this.currentLevel + 1 });
-        } else {
-          this.scene.start('GameScene', { level: 1 });
-        }
-      }
+    if (this.checkGoalReached(body)) {
+      const nextLevel = this.currentLevel < LEVEL_MAX ? this.currentLevel + 1 : LEVEL_MIN;
+      this.scene.start(SCENE_KEY_GAME, { level: nextLevel });
+      return;
     }
+  }
+
+  private checkDeathByFall(body: Phaser.Physics.Arcade.Body): boolean {
+    if (this.currentLevel < DEATH_FALL_LEVEL_MIN) return false;
+    const playerBottom = body.y + body.height;
+    return playerBottom > this.mapHeightPx + DEATH_FALL_MARGIN;
+  }
+
+  private checkGoalReached(body: Phaser.Physics.Arcade.Body): boolean {
+    if (!this.goalZone) return false;
+    const playerRect = new Phaser.Geom.Rectangle(
+      body.x,
+      body.y,
+      body.width,
+      body.height
+    );
+    return Phaser.Geom.Rectangle.Overlaps(playerRect, this.goalZone);
   }
 }
