@@ -17,8 +17,14 @@ Bu doküman hem **şu ana kadar yapılanları** hem **sıradaki fikirleri** list
 | Kontroller ekranı | ControlsScene: A/D, W/Space, S, 1–5, Esc; ana menü ve Ayarlar’dan (K) erişim |
 | Ses (temel) | SoundManager: zıplama, hedefe girme, ölüm (Web Audio API, asset yok) |
 | Coyote time + jump buffer | Player: kenardan düşerken ~100 ms zıplama; yere inmeden ~120 ms önce basınca zıplama |
+| Parçacık efektleri | Hedefe girince yeşil/sarı burst; ölünce kırmızı burst; zıplamada ayak altı toz (spawnJumpDust). |
+| Maske değiştirme sesi | Hotbar’da slot değişince playMaskSwitch (SoundManager). |
 | Sıralama ekranı | RankingScene: en yüksek bölüm veya "Henüz kayıt yok" |
-| Ayarlar ekranı | SettingsScene: Kontroller [K], placeholder; Geri: Escape |
+| 3. maske (mavi) | MaskType.Blue, Hotbar slot 3, tilemap blue layer (script ile eklendi) |
+| Checkpoint | Haritanın %40’ını geçince kayıt; ölünce checkpoint’ten devam (spawnX/spawnY) |
+| Hazard / spike | Tiled "hazards" object layer; overlap = ölüm |
+| Can sistemi | 3 can, sol üst HUD; ölünce can azalır, 0’da bölüm baştan |
+| Ayarlar ekranı | Kontroller [K], Ses (Yüksek/Orta/Düşük/Kapalı), Müzik (Açık/Kapalı); Geri: Escape |
 
 ---
 
@@ -38,10 +44,12 @@ Bu doküman hem **şu ana kadar yapılanları** hem **sıradaki fikirleri** list
 |--------|----------|--------|
 | ~~Ses (temel)~~ | ✅ Zıplama, hedef, ölüm (SoundManager, Web Audio). | — |
 | ~~Hareket iyileştirmeleri~~ | ✅ Coyote time (100 ms), jump buffer (120 ms). | — |
-| **Parçacık / efekt** | Hedefe girince veya ölünce kısa efekt; isteğe zıplama tozu. | Orta |
-| **Ek maske (3. maske)** | Mavi layer; hotbar slot 3, MaskType + tilemap layer. | Orta |
-| **Basit düşman / tehlike** | Dokununca ölüm veya hasar; sabit veya basit patrol. | Orta |
-| **Checkpoint** | Seviye içinde spawn noktası; ölünce oradan devam. | Orta |
+| ~~Parçacık / efekt (hedef, ölüm)~~ | ✅ Hedefe girince yeşil/sarı burst; ölünce kırmızı burst. Maske değiştirme sesi eklendi. | — |
+| ~~Ek maske (3. maske)~~ | ✅ Tamamlandı. | — |
+| ~~Basit tehlike (hazard)~~ | ✅ Tiled "hazards" object layer; overlap = ölüm. | — |
+| ~~Checkpoint~~ | ✅ Haritanın %40’ı geçince kayıt; ölünce oradan devam. | — |
+| ~~Can / HUD~~ | ✅ 3 can, sol üst kalp göstergesi. | — |
+| ~~Ayarlar içeriği (ses)~~ | ✅ Ses seviyesi + müzik aç/kapa (localStorage). | — |
 
 ### 3. İçerik
 
@@ -90,3 +98,7 @@ Sonrasında: Bölüm 2–5 engelleri (Tiled), Ayarlar içeriği (ses), parçacı
 - **“Sırayla yap”** dersen, yukarıdaki “bir sonraki 5 adım” sırasıyla uygulanabilir.
 
 Bu dosya canlı plan; birlikte güncelleyebiliriz.
+
+---
+
+**Detaylı plan:** Tüm özellikler için açıklama, uygulama notları, zorluk ve dosya referansları → [DETAILED_FEATURE_PLAN.md](./DETAILED_FEATURE_PLAN.md).

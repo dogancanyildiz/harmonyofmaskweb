@@ -5,4 +5,5 @@
 export enum MaskType {
   Green = 'green',
   Red = 'red',
+  Blue = 'blue',
 }

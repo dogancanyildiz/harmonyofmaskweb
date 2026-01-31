@@ -45,6 +45,7 @@ export const LEVEL_MAP_KEYS: Record<number, string> = {
 export const TILESET_IMAGE_KEY = 'tileset';
 export const LAYER_NAME_GREEN = 'green';
 export const LAYER_NAME_RED = 'red';
+export const LAYER_NAME_BLUE = 'blue';
 
 /** Level index from which falling below map = death (restart level). */
 export const DEATH_FALL_LEVEL_MIN = 3;
@@ -57,6 +58,10 @@ export const VOID_HEIGHT = 200;
 export const SPAWN_OFFSET_X = TILE_SIZE * 3;
 /** Spawn Y = mapHeightPx - SPAWN_OFFSET_Y. */
 export const SPAWN_OFFSET_Y = TILE_SIZE * 3;
+/** When player passes this fraction of map width, checkpoint is set. */
+export const CHECKPOINT_TRIGGER_RATIO = 0.4;
+/** Max lives per level; 0 = respawn at checkpoint. */
+export const LIVES_MAX = 3;
 
 /** Goal zone width (px). */
 export const GOAL_ZONE_WIDTH = 40;
@@ -77,6 +82,7 @@ export const CAMERA_FOLLOW_LERP = 0.1;
 // ——— Tile layers (tint) ———
 export const LAYER_TINT_RED = 0xef4444;
 export const LAYER_TINT_GREEN = 0x22c55e;
+export const LAYER_TINT_BLUE = 0x3b82f6;
 
 // ——— Hotbar ———
 export const HOTBAR_SLOT_COUNT = 5;
@@ -93,6 +99,7 @@ export const HOTBAR_COLOR_BORDER_SELECTED = 0xfbbf24;
 export const HOTBAR_COLOR_BG = 0x1e293b;
 export const HOTBAR_COLOR_RED = 0xef4444;
 export const HOTBAR_COLOR_GREEN = 0x22c55e;
+export const HOTBAR_COLOR_BLUE = 0x3b82f6;
 
 /** Key codes for hotbar slot selection (keys 1–5). */
 export const HOTBAR_KEY_CODES: readonly number[] = [49, 50, 51, 52, 53];

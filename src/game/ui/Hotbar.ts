@@ -12,6 +12,7 @@ import {
   HOTBAR_COLOR_BG,
   HOTBAR_COLOR_RED,
   HOTBAR_COLOR_GREEN,
+  HOTBAR_COLOR_BLUE,
   HOTBAR_KEY_CODES,
 } from '../constants';
 
@@ -19,7 +20,7 @@ import {
 const SLOT_MASKS: (MaskType | null)[] = [
   MaskType.Red,
   MaskType.Green,
-  null,
+  MaskType.Blue,
   null,
   null,
 ];
@@ -68,7 +69,12 @@ export class Hotbar {
 
       const maskType = SLOT_MASKS[i];
       if (maskType !== null) {
-        const color = maskType === MaskType.Red ? HOTBAR_COLOR_RED : HOTBAR_COLOR_GREEN;
+        const color =
+          maskType === MaskType.Red
+            ? HOTBAR_COLOR_RED
+            : maskType === MaskType.Green
+              ? HOTBAR_COLOR_GREEN
+              : HOTBAR_COLOR_BLUE;
         const icon = scene.add.rectangle(x, y, iconSize, iconSize, color);
         this.container.add(icon);
       }
