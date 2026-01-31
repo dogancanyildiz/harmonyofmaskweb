@@ -11,7 +11,7 @@ import {
 import { getLastCompletedLevel } from '../save';
 
 /**
- * Level select: choose level 1–5. Only unlocked levels (by save) are selectable.
+ * Level select: choose level 1–LEVEL_MAX. Only unlocked levels (by save) are selectable.
  * Arrow/W/S: move. Enter/Space: start level. Escape: main menu.
  */
 export class LevelSelectScene extends Scene {

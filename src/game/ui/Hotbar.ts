@@ -16,35 +16,33 @@ import {
   HOTBAR_KEY_CODES,
 } from '../constants';
 
-/** Slot index → mask type; null = empty slot. */
-const SLOT_MASKS: (MaskType | null)[] = [
-  MaskType.Red,
-  MaskType.Green,
-  MaskType.Blue,
-  null,
-  null,
-];
+/** Grey for locked slot (blue until level 3). */
+const HOTBAR_COLOR_LOCKED = 0x475569;
 
 /**
  * Minecraft-style 5-slot hotbar at bottom of screen.
- * Slots 1 and 2 hold Red and Green masks; keys 1–5 select slot.
+ * Slots 0–2: Red, Green, Blue (Blue unlocked from level 3). Keys 1–5 select slot.
  */
 export class Hotbar {
   private scene: Scene;
   private container: Phaser.GameObjects.Container;
   private slotRects: Phaser.GameObjects.Rectangle[] = [];
   private slotBorders: Phaser.GameObjects.Rectangle[] = [];
+  private slotIcons: (Phaser.GameObjects.Rectangle | null)[] = [];
   private selectedIndex = 0;
   private onSlotSelected: (slotIndex: number, maskType: MaskType | null) => void;
+  private blueUnlocked: boolean;
 
   constructor(
     scene: Scene,
     gameWidth: number,
     gameHeight: number,
-    onSlotSelected: (slotIndex: number, maskType: MaskType | null) => void
+    onSlotSelected: (slotIndex: number, maskType: MaskType | null) => void,
+    blueUnlocked = true
   ) {
     this.scene = scene;
     this.onSlotSelected = onSlotSelected;
+    this.blueUnlocked = blueUnlocked;
     this.container = scene.add.container(0, 0);
     this.container.setDepth(1000);
 
@@ -67,16 +65,22 @@ export class Hotbar {
       this.slotBorders.push(border);
       this.slotRects.push(bg);
 
-      const maskType = SLOT_MASKS[i];
-      if (maskType !== null) {
+      const isBlueSlot = i === 2;
+      const showBlue = isBlueSlot;
+      if (showBlue || i === 0 || i === 1) {
         const color =
-          maskType === MaskType.Red
+          i === 0
             ? HOTBAR_COLOR_RED
-            : maskType === MaskType.Green
+            : i === 1
               ? HOTBAR_COLOR_GREEN
-              : HOTBAR_COLOR_BLUE;
+              : blueUnlocked
+                ? HOTBAR_COLOR_BLUE
+                : HOTBAR_COLOR_LOCKED;
         const icon = scene.add.rectangle(x, y, iconSize, iconSize, color);
         this.container.add(icon);
+        this.slotIcons.push(icon);
+      } else {
+        this.slotIcons.push(null);
       }
     }
 
@@ -105,15 +109,24 @@ export class Hotbar {
     this.slotBorders.forEach((border, i) => {
       border.setFillStyle(i === index ? HOTBAR_COLOR_BORDER_SELECTED : HOTBAR_COLOR_BORDER);
     });
-    this.onSlotSelected(index, SLOT_MASKS[index]);
+    const maskType = this.getMaskForSlot(index);
+    this.onSlotSelected(index, maskType);
+  }
+
+  /** Slot 0=Red, 1=Green, 2=Blue (if unlocked), else null. */
+  private getMaskForSlot(slotIndex: number): MaskType | null {
+    if (slotIndex === 0) return MaskType.Red;
+    if (slotIndex === 1) return MaskType.Green;
+    if (slotIndex === 2 && this.blueUnlocked) return MaskType.Blue;
+    return null;
   }
 
   getSelectedSlot(): number {
     return this.selectedIndex;
   }
 
-  /** Get mask type for a slot (null if empty). */
-  static getMaskForSlot(slotIndex: number): MaskType | null {
-    return SLOT_MASKS[slotIndex] ?? null;
+  /** Get mask type for a slot (null if empty). Instance method uses blueUnlocked. */
+  getMaskForSlotPublic(slotIndex: number): MaskType | null {
+    return this.getMaskForSlot(slotIndex);
   }
 }

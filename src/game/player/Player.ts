@@ -10,6 +10,7 @@ import {
   PLAYER_COLOR,
   COYOTE_TIME_MS,
   JUMP_BUFFER_MS,
+  MAX_JUMPS,
 } from '../constants';
 
 type PlayerKeys = {
@@ -32,6 +33,8 @@ export class Player {
   private isCrouching = false;
   private lastOnGroundTime = 0;
   private jumpBufferUntil = 0;
+  /** Remaining air jumps (double jump). Reset to MAX_JUMPS on ground. */
+  private jumpsLeft = MAX_JUMPS;
 
   constructor(
     private scene: Scene,
@@ -93,16 +96,22 @@ export class Player {
     else this.body.setVelocityX(0);
 
     const onGround = this.body.blocked.down || this.body.touching.down;
-    if (onGround) this.lastOnGroundTime = now;
+    if (onGround) {
+      this.lastOnGroundTime = now;
+      this.jumpsLeft = MAX_JUMPS;
+    }
     const coyoteOk = !onGround && now - this.lastOnGroundTime <= COYOTE_TIME_MS;
     const canJumpFromGround = onGround || coyoteOk;
 
     if (jumpJustDown && !canJumpFromGround) this.jumpBufferUntil = now + JUMP_BUFFER_MS;
     const bufferOk = now <= this.jumpBufferUntil;
 
-    const doJump = !this.isCrouching && (canJumpFromGround && (jump || bufferOk));
+    const jumpFromGround = canJumpFromGround && (jump || bufferOk);
+    const jumpFromAir = !canJumpFromGround && jumpJustDown && this.jumpsLeft > 0;
+    const doJump = !this.isCrouching && (jumpFromGround || jumpFromAir);
     if (doJump) {
       this.body.setVelocityY(PLAYER_JUMP_FORCE);
+      this.jumpsLeft--;
       this.onJump?.();
       this.jumpBufferUntil = 0;
     }

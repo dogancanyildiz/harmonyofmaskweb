@@ -39,8 +39,12 @@ import {
   LAYER_TINT_BLUE,
   GAME_WIDTH,
   GAME_HEIGHT,
+  STARS_PER_LEVEL,
+  STAR_RADIUS,
+  STAR_COLOR,
 } from '../constants';
-import { saveLastCompletedLevel, getVolumePrefs } from '../save';
+import { saveLastCompletedLevel, getVolumePrefs, getLevelStars, setLevelStars } from '../save';
+import { getStarsForLevel, getPlatformsForLevel } from '../levelConfig';
 import { SoundManager } from '../audio/SoundManager';
 import { spawnGoalEffect, spawnDeathEffect, spawnJumpDust } from '../effects/ParticleEffects';
 
@@ -67,9 +71,16 @@ export class GameScene extends Scene {
   private checkpointX = 0;
   private checkpointY = 0;
   private checkpointTriggered = false;
+  /** Level start position: used when respawning after fall (L3+). */
+  private spawnStartX = 0;
+  private spawnStartY = 0;
   private lives = LIVES_MAX;
   private hazardGroup: Phaser.Physics.Arcade.StaticGroup | null = null;
   private livesContainer: Phaser.GameObjects.Container | null = null;
+  private starsGroup: Phaser.GameObjects.Group | null = null;
+  private starsCollected = 0;
+  private starsHUDText: Phaser.GameObjects.Text | null = null;
+  private movingPlatformGroup: Phaser.Physics.Arcade.Group | null = null;
 
   constructor() {
     super({ key: SCENE_KEY_GAME });
@@ -102,6 +113,8 @@ export class GameScene extends Scene {
 
     this.lives = data?.lives ?? LIVES_MAX;
     const groundY = this.mapHeightPx - TILE_SIZE - PLAYER_STAND_HEIGHT / 2;
+    this.spawnStartX = SPAWN_OFFSET_X;
+    this.spawnStartY = groundY;
     this.checkpointX = data?.spawnX ?? SPAWN_OFFSET_X;
     this.checkpointY = data?.spawnY ?? groundY;
     this.checkpointTriggered = data?.spawnX != null;
@@ -120,22 +133,39 @@ export class GameScene extends Scene {
       spawnJumpDust(this, fx, fy);
     });
     this.setupColliders(greenLayer, redLayer, blueLayer);
+    const blueUnlocked = this.currentLevel >= 3;
+    if (blueLayer && !blueUnlocked) blueLayer.setVisible(false);
     const maskEntries: MaskLayerEntry[] = [
       { maskType: MaskType.Red, layer: redLayer },
       { maskType: MaskType.Green, layer: greenLayer },
     ];
-    if (blueLayer) maskEntries.push({ maskType: MaskType.Blue, layer: blueLayer });
+    if (blueLayer && blueUnlocked) maskEntries.push({ maskType: MaskType.Blue, layer: blueLayer });
     this.maskSystem = new MaskSystem(maskEntries, MaskType.Red);
-    this.setupHotbar();
+    this.setupHotbar(blueUnlocked);
     this.previousMaskType = MaskType.Red;
     this.setupCamera();
     this.setupGoalZone();
     this.setupLevelIndicator();
     this.setupHazards(map);
+    this.setupStars();
+    this.setupMovingPlatforms();
+    this.setupStarsHUD();
     this.setupLivesHUD();
     if (this.hazardGroup) {
       const physics = this.physics as Phaser.Physics.Arcade.ArcadePhysics;
       physics.add.overlap(this.player.getGameObject(), this.hazardGroup, () => this.triggerDeath());
+    }
+    if (this.starsGroup && this.starsGroup.getLength() > 0) {
+      const physics = this.physics as Phaser.Physics.Arcade.ArcadePhysics;
+      physics.add.overlap(this.player.getGameObject(), this.starsGroup, (_p, star) => {
+        (star as Phaser.GameObjects.GameObject).destroy();
+        this.starsCollected++;
+        this.updateStarsHUD();
+      });
+    }
+    if (this.movingPlatformGroup && this.movingPlatformGroup.getLength() > 0) {
+      const physics = this.physics as Phaser.Physics.Arcade.ArcadePhysics;
+      physics.add.collider(this.player.getGameObject(), this.movingPlatformGroup);
     }
     this.setupPauseOverlay();
     this.setupPauseKeys();
@@ -239,7 +269,7 @@ export class GameScene extends Scene {
     if (blueLayer) physics.add.collider(go, blueLayer);
   }
 
-  private setupHotbar(): void {
+  private setupHotbar(blueUnlocked: boolean): void {
     const gameWidth = this.cameras.main.width;
     const gameHeight = this.cameras.main.height;
     this.hotbar = new Hotbar(this, gameWidth, gameHeight, (_, maskType) => {
@@ -250,7 +280,7 @@ export class GameScene extends Scene {
           this.previousMaskType = maskType;
         }
       }
-    });
+    }, blueUnlocked);
     this.hotbar.setSelectedSlot(0);
   }
 
@@ -289,6 +319,53 @@ export class GameScene extends Scene {
     });
     text.setScrollFactor(0);
     text.setDepth(1000);
+  }
+
+  private setupStars(): void {
+    const positions = getStarsForLevel(this.currentLevel);
+    this.starsCollected = 0;
+    this.starsGroup = this.add.group();
+    const physics = this.physics as Phaser.Physics.Arcade.ArcadePhysics;
+    for (const pos of positions) {
+      const star = this.add.circle(pos.x, pos.y, STAR_RADIUS, STAR_COLOR);
+      star.setDepth(50);
+      physics.add.existing(star, true);
+      this.starsGroup.add(star);
+    }
+  }
+
+  private setupMovingPlatforms(): void {
+    const defs = getPlatformsForLevel(this.currentLevel);
+    this.movingPlatformGroup = this.physics.add.group();
+    for (const d of defs) {
+      const rect = this.add.rectangle(d.x + d.width / 2, d.y + d.height / 2, d.width, d.height, 0x64748b, 0.9);
+      rect.setDepth(40);
+      this.physics.add.existing(rect, false);
+      const body = (rect as unknown as { body: Phaser.Physics.Arcade.Body }).body;
+      body.setImmovable(true);
+      body.setVelocityX(d.vx);
+      body.setAllowGravity(false);
+      rect.setData('vx', d.vx);
+      rect.setData('leftBound', d.leftBound);
+      rect.setData('rightBound', d.rightBound);
+      this.movingPlatformGroup!.add(rect);
+    }
+  }
+
+  private setupStarsHUD(): void {
+    const hasStars = getStarsForLevel(this.currentLevel).length > 0;
+    if (!hasStars) return;
+    this.starsHUDText = this.add.text(GAME_WIDTH - 50, 8, `★ 0 / ${STARS_PER_LEVEL}`, {
+      fontSize: '12px',
+      color: '#fbbf24',
+    });
+    this.starsHUDText.setOrigin(1, 0);
+    this.starsHUDText.setScrollFactor(0);
+    this.starsHUDText.setDepth(1000);
+  }
+
+  private updateStarsHUD(): void {
+    if (this.starsHUDText) this.starsHUDText.setText(`★ ${this.starsCollected} / ${STARS_PER_LEVEL}`);
   }
 
   private setupHazards(map: Phaser.Tilemaps.Tilemap): void {
@@ -356,6 +433,19 @@ export class GameScene extends Scene {
     this.player.update();
     const body = this.player.getBody();
 
+    if (this.movingPlatformGroup) {
+      this.movingPlatformGroup.getChildren().forEach((child) => {
+        const go = child as Phaser.GameObjects.GameObject & { body: Phaser.Physics.Arcade.Body };
+        if (!go.body) return;
+        const vx = go.getData('vx') as number;
+        const left = go.getData('leftBound') as number;
+        const right = go.getData('rightBound') as number;
+        const x = go.body.x + go.body.width / 2;
+        if (x <= left) go.body.setVelocityX(Math.abs(vx));
+        if (x >= right) go.body.setVelocityX(-Math.abs(vx));
+      });
+    }
+
     if (!this.checkpointTriggered && body.x >= this.mapWidthPx * CHECKPOINT_TRIGGER_RATIO) {
       this.checkpointTriggered = true;
       this.checkpointX = body.x;
@@ -363,12 +453,13 @@ export class GameScene extends Scene {
     }
 
     if (this.checkDeathByFall(body)) {
-      this.triggerDeath();
+      this.respawnAtLevelStart();
       return;
     }
 
     if (this.checkGoalReached(body)) {
       this.isTransitioning = true;
+      setLevelStars(this.currentLevel, this.starsCollected);
       const cx = body.x + body.width / 2;
       const cy = body.y + body.height / 2;
       spawnGoalEffect(this, cx, cy);
@@ -412,6 +503,21 @@ export class GameScene extends Scene {
     if (this.currentLevel < DEATH_FALL_LEVEL_MIN) return false;
     const playerBottom = body.y + body.height;
     return playerBottom > this.mapHeightPx + DEATH_FALL_MARGIN;
+  }
+
+  /** Respawn at level start (no life lost). Used when player falls into pit (L3+). */
+  private respawnAtLevelStart(): void {
+    if (this.isTransitioning) return;
+    this.isTransitioning = true;
+    this.soundManager.playDeath();
+    this.time.delayedCall(400, () => {
+      this.scene.start(SCENE_KEY_GAME, {
+        level: this.currentLevel,
+        spawnX: this.spawnStartX,
+        spawnY: this.spawnStartY,
+        lives: this.lives,
+      });
+    });
   }
 
   private checkGoalReached(body: Phaser.Physics.Arcade.Body): boolean {

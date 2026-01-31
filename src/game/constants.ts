@@ -24,6 +24,8 @@ export const PLAYER_COLOR = 0x4ade80;
 export const COYOTE_TIME_MS = 100;
 /** Jump buffer: if jump was pressed this many ms before landing, jump on next ground contact. */
 export const JUMP_BUFFER_MS = 120;
+/** Max jumps in air (1 = single, 2 = double jump). */
+export const MAX_JUMPS = 2;
 
 // ——— World / scene ———
 export const SCENE_KEY_MENU = 'MainMenuScene';
@@ -34,14 +36,22 @@ export const SCENE_KEY_RANKING = 'RankingScene';
 export const SCENE_KEY_LEVEL_SELECT = 'LevelSelectScene';
 export const SCENE_KEY_CONTROLS = 'ControlsScene';
 export const LEVEL_MIN = 1;
-export const LEVEL_MAX = 5;
+export const LEVEL_MAX = 8;
 export const LEVEL_MAP_KEYS: Record<number, string> = {
   1: 'tilemap',
   2: 'tilemap2',
   3: 'tilemap3',
   4: 'tilemap4',
   5: 'tilemap5',
+  6: 'tilemap6',
+  7: 'tilemap7',
+  8: 'tilemap8',
 };
+/** Stars per level (for levels that have stars). */
+export const STARS_PER_LEVEL = 3;
+/** Star radius (px) for overlap. */
+export const STAR_RADIUS = 8;
+export const STAR_COLOR = 0xfbbf24;
 export const TILESET_IMAGE_KEY = 'tileset';
 export const LAYER_NAME_GREEN = 'green';
 export const LAYER_NAME_RED = 'red';

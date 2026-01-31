@@ -1,20 +1,40 @@
-# Bölüm 2–5 Engelleri (Tiled ile)
+# Bölüm 2–8 Engelleri (Maske Geçişi, Yıldız, Hareketli Platform)
 
-Seviye 2, 3, 4, 5’te şu an **sadece en alt satır zemin** var; platformlar ve boşluklar `scripts/clear-obstacles-keep-ground.mjs` ile temizlenmişti.
+Engeller **Level 1 ile aynı mantıkta**: bazı platformlar sadece **yeşil**, bazıları sadece **kırmızı**, bazıları sadece **mavi** layer’da. Oyuncu ilerlemek için maske değiştirmek zorunda. Zorluk 2’den 8’e artar.
 
-## Engelleri geri eklemek
+- **Bölüm 6–8:** Yıldız toplama (3 yıldız), hareketli platformlar, çift zıplama kullanımı; zemin boşlukları artar.
 
-1. **Tiled** ile `public/assets/tilemap2.json` … `tilemap5.json` dosyalarını aç (veya `.tmx` kaynağın varsa onu düzenle).
-2. **green** ve **red** layer’larında, en alt satırı **olduğu gibi bırak** (tam zemin).
-3. Üst satırlara platformlar ve boşluklar ekle: `LEVELS_PLAN.md`’deki tasarıma göre:
-   - Bölüm 2: Parçalı zemin, dar platformlar, eğilme geçitleri.
-   - Bölüm 3–5: Daha fazla boşluk, dar platformlar, mask değiştirme zorunlu.
-4. **Export** → JSON olarak kaydet; mevcut `tilemap2.json` … `tilemap5.json` üzerine yazılabilir.
+## Script ile ekleme
 
-## Dikkat
+```bash
+node scripts/add-obstacles.mjs
+```
 
-- Layer isimleri **green** ve **red** kalmalı; kod buna göre.
-- Tileset adı **tileset**, tile boyutu **16×16** kalmalı.
-- En alt satırı boş bırakma; tüm seviyelerde sürekli zemin standardı korunmalı.
+- **Bölüm 2:** Yeşil → kırmızı → yeşil → kırmızı (geniş platformlar, az sayıda geçiş).
+- **Bölüm 3:** Daha çok geçiş, bir üst platform; **mavi** layer’da tek mavi-only platform (mavi maske gerekir).
+- **Bölüm 4–5:** Daha sık geçiş, dar platformlar, mavi-only köprüler; L5’te mavi zorunlu.
+- **Bölüm 6–8:** L1 engel mantığı + ek zemin boşlukları; yıldız ve hareketli platformlar `levelConfig.ts` ile tanımlı.
 
-Script’i tekrar çalıştırırsan yine sadece zemin kalır; engelleri Tiled’da elle ekleyip export etmek gerekir.
+## Level 1 mantığı
+
+- **Green-only:** Platform sadece green layer’da → kırmızı maskeyle görünmez, yeşile geçmek gerekir.
+- **Red-only:** Platform sadece red layer’da → yeşil maskeyle görünmez, kırmızıya geçmek gerekir.
+- **Blue-only (L3+):** Platform sadece blue layer’da → mavi maskeye geçmek gerekir.
+
+Script zemin dışı satırları temizleyip yalnızca bu tek-maske platformları ekler; böylece ilerleme maske geçişine bağlı olur.
+
+## Teknik
+
+- Layer isimleri: **green**, **red**, **blue**.
+- Tileset: **tileset**, tile 16×16.
+- En alt satır zemin (script dokunmaz). Üst satırlara sadece ilgili layer’da 1 yazılır (diğer layer’da 0).
+
+**Zemin boşlukları (L3+):** Bölüm 3’ten itibaren zeminde çeşitli boşluklar (çukurlar) vardır. Düşen oyuncu can kaybetmeden **bölüm başlangıcına** döner.
+
+Engelleri değiştirmek için `scripts/add-obstacles.mjs` içindeki `setRange(…)` çağrılarını düzenle; script tekrar çalışınca önce zemin üstü temizlenip yeni engeller yazılır.
+
+## Yıldız ve hareketli platform (L6–8)
+
+- **Yıldız:** Bölüm 6, 7, 8’de 3’er yıldız; konumlar `src/game/levelConfig.ts` → `LEVEL_STARS`. Toplanan yıldız sayısı HUD’da "★ 1/3" olarak gösterilir; bölüm bitince en iyi skor kaydedilir.
+- **Hareketli platform:** `LEVEL_PLATFORMS` ile tanımlı; yatay gidip gelen platformlar. Oyuncu üzerinde durunca platformla birlikte hareket eder.
+- **Çift zıplama:** Tüm bölümlerde havada bir kez daha zıplama (constants: `MAX_JUMPS = 2`).
