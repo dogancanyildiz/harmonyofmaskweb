@@ -8,7 +8,7 @@ Kolay okunabilir ve düzenlenebilir yapı özeti.
 |-------|----------|
 | `src/main.ts` | DOM yüklendikten sonra Phaser.Game başlatır; `gameConfig` için `./game` import eder. |
 | `src/game/index.ts` | Oyun modülü girişi: `gameConfig`, `MaskType`, `MaskLayerEntry` export eder. |
-| `src/game/config.ts` | Phaser oyun config (ekran, fizik, sahne listesi); değerler `constants.ts`'den gelir. |
+| `src/game/config.ts` | Phaser oyun config (ekran, fizik, sahne listesi). İlk sahne: MainMenuScene. |
 
 ## Sabitler ve yapılandırma
 
@@ -20,13 +20,19 @@ Kolay okunabilir ve düzenlenebilir yapı özeti.
 
 | Dosya | Açıklama |
 |-------|----------|
-| `src/game/scenes/GameScene.ts` | Ana sahne. `create()` küçük metodlara bölünmüş: `setupMap`, `setupWorldBounds`, `setupColliders`, `setupHotbar`, `setupCamera`, `setupGoalZone`. Ölüm/hedef kontrolü `checkDeathByFall`, `checkGoalReached`. Preload tüm tilemap'leri `LEVEL_MAP_KEYS` ile döngüyle yükler. |
+| `src/game/scenes/MainMenuScene.ts` | Ana menü: Yeni oyun, Devam et, Seviye seç, Sıralama, Kontroller, Ayarlar (ok/W/S, Enter/Space). |
+| `src/game/scenes/LevelSelectScene.ts` | Seviye seçimi 1–5; kayda göre kilitleme. |
+| `src/game/scenes/ControlsScene.ts` | Kontroller: A/D, W/Space, S, 1–5, Esc. Ana menü veya Ayarlar’dan (K) erişilir. |
+| `src/game/scenes/GameScene.ts` | Oyun sahnesi. `create()`: `setupMap`, `setupWorldBounds`, `setupColliders`, `setupHotbar`, `setupCamera`, `setupGoalZone`, `setupLevelIndicator`. Ölüm/hedef: `checkDeathByFall`, `checkGoalReached`. Bölüm 5 hedefi → WinScene. Preload: tilemap'ler `LEVEL_MAP_KEYS` ile. |
+| `src/game/scenes/WinScene.ts` | Bitiş ekranı: "Tebrikler!". Tekrar oyna (Space), menü (Escape). |
+| `src/game/save.ts` | Kayıt: `saveLastCompletedLevel`, `getLastCompletedLevel` (localStorage). Hedefe girince kayıt; menüde "Devam et" buna göre. |
 
 ## Karakter, maske, UI
 
 | Dosya | Açıklama |
 |-------|----------|
-| `src/game/player/Player.ts` | Hareket, zıplama, eğilme. Tuş tipi `PlayerKeys`; boyut/hız `constants`'tan. |
+| `src/game/player/Player.ts` | Hareket, zıplama, eğilme, coyote time, jump buffer. Tuş tipi `PlayerKeys`; boyut/hız `constants`'tan. |
+| `src/game/audio/SoundManager.ts` | Ses efektleri (Web Audio): playJump, playGoal, playDeath. Asset yok. |
 | `src/game/masks/MaskType.ts` | Mask türleri (Red, Green); layer isimleriyle eşleşir. |
 | `src/game/masks/MaskSystem.ts` | Aktif maskeye göre hangi layer'ın görüneceğini yönetir; çarpışma her zaman açık. |
 | `src/game/ui/Hotbar.ts` | 5 slot, 1–5 tuşları; slot içeriği `SLOT_MASKS`, boyutlar/renkler `constants`'tan. |

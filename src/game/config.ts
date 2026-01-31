@@ -1,5 +1,11 @@
 import type { Types } from 'phaser';
+import { MainMenuScene } from './scenes/MainMenuScene';
 import { GameScene } from './scenes/GameScene';
+import { WinScene } from './scenes/WinScene';
+import { SettingsScene } from './scenes/SettingsScene';
+import { RankingScene } from './scenes/RankingScene';
+import { LevelSelectScene } from './scenes/LevelSelectScene';
+import { ControlsScene } from './scenes/ControlsScene';
 import {
   GAME_WIDTH,
   GAME_HEIGHT,
@@ -9,7 +15,7 @@ import {
 
 /**
  * Phaser game configuration.
- * Pixel-art friendly (no smoothing, round pixels), Arcade physics, single GameScene.
+ * First scene: main menu. Pixel-art, Arcade physics.
  */
 export const gameConfig: Types.Core.GameConfig = {
   type: Phaser.AUTO,
@@ -31,5 +37,5 @@ export const gameConfig: Types.Core.GameConfig = {
       debug: false,
     },
   },
-  scene: [GameScene],
+  scene: [MainMenuScene, GameScene, WinScene, SettingsScene, RankingScene, LevelSelectScene, ControlsScene],
 };

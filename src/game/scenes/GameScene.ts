@@ -7,6 +7,9 @@ import type { MaskLayerEntry } from '../masks/MaskSystem';
 import { Hotbar } from '../ui/Hotbar';
 import {
   SCENE_KEY_GAME,
+  SCENE_KEY_WIN,
+  SCENE_KEY_MENU,
+  SCENE_KEY_SETTINGS,
   LEVEL_MAP_KEYS,
   LEVEL_MIN,
   LEVEL_MAX,
@@ -28,7 +31,11 @@ import {
   CAMERA_FOLLOW_LERP,
   LAYER_TINT_RED,
   LAYER_TINT_GREEN,
+  GAME_WIDTH,
+  GAME_HEIGHT,
 } from '../constants';
+import { saveLastCompletedLevel } from '../save';
+import { SoundManager } from '../audio/SoundManager';
 
 /**
  * Main game scene: multiple levels, goal zone to advance, death by fall from level 3+.
@@ -42,6 +49,12 @@ export class GameScene extends Scene {
   private mapWidthPx = 0;
   private goalZone: Phaser.Geom.Rectangle | null = null;
   private goalGraphics: Phaser.GameObjects.Graphics | null = null;
+  private isPaused = false;
+  private pauseOverlay: Phaser.GameObjects.Container | null = null;
+  private keyEsc!: Phaser.Input.Keyboard.Key;
+  private keyA!: Phaser.Input.Keyboard.Key;
+  private keyM!: Phaser.Input.Keyboard.Key;
+  private soundManager!: SoundManager;
 
   constructor() {
     super({ key: SCENE_KEY_GAME });
@@ -68,7 +81,10 @@ export class GameScene extends Scene {
     this.mapHeightPx = map.heightInPixels;
 
     this.setupWorldBounds();
-    this.player = new Player(this, SPAWN_OFFSET_X, this.mapHeightPx - SPAWN_OFFSET_Y);
+    this.soundManager = new SoundManager();
+    this.player = new Player(this, SPAWN_OFFSET_X, this.mapHeightPx - SPAWN_OFFSET_Y, () =>
+      this.soundManager.playJump()
+    );
     this.setupColliders(greenLayer, redLayer);
     this.maskSystem = new MaskSystem(
       [
@@ -80,6 +96,44 @@ export class GameScene extends Scene {
     this.setupHotbar();
     this.setupCamera();
     this.setupGoalZone();
+    this.setupLevelIndicator();
+    this.setupPauseOverlay();
+    this.setupPauseKeys();
+  }
+
+  private setupPauseOverlay(): void {
+    const cx = GAME_WIDTH / 2;
+    const cy = GAME_HEIGHT / 2;
+    const bg = this.add.graphics();
+    bg.fillStyle(0x0, 0.7);
+    bg.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+    const title = this.add.text(cx, cy - 30, 'Duraklatıldı', {
+      fontSize: '18px',
+      color: '#fbbf24',
+    }).setOrigin(0.5);
+    const devam = this.add.text(cx, cy, 'Devam: Esc', {
+      fontSize: '14px',
+      color: '#e2e8f0',
+    }).setOrigin(0.5);
+    const ayarlar = this.add.text(cx, cy + 24, 'Ayarlar: A', {
+      fontSize: '14px',
+      color: '#e2e8f0',
+    }).setOrigin(0.5);
+    const menu = this.add.text(cx, cy + 48, 'Menüye dön: M', {
+      fontSize: '14px',
+      color: '#e2e8f0',
+    }).setOrigin(0.5);
+    this.pauseOverlay = this.add.container(0, 0, [bg, title, devam, ayarlar, menu]);
+    this.pauseOverlay.setVisible(false);
+    this.pauseOverlay.setDepth(2000);
+  }
+
+  private setupPauseKeys(): void {
+    const keyboard = this.input.keyboard;
+    if (!keyboard) return;
+    this.keyEsc = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
+    this.keyA = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.A);
+    this.keyM = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.M);
   }
 
   private setupMap(mapKey: string): {
@@ -164,18 +218,51 @@ export class GameScene extends Scene {
     );
   }
 
+  private setupLevelIndicator(): void {
+    const text = this.add.text(8, 8, `Bölüm ${this.currentLevel} / ${LEVEL_MAX}`, {
+      fontSize: '12px',
+      color: '#e2e8f0',
+    });
+    text.setScrollFactor(0);
+    text.setDepth(1000);
+  }
+
   update(): void {
+    if (this.isPaused) {
+      if (Phaser.Input.Keyboard.JustDown(this.keyEsc)) {
+        this.isPaused = false;
+        this.pauseOverlay?.setVisible(false);
+      } else if (Phaser.Input.Keyboard.JustDown(this.keyA)) {
+        this.scene.start(SCENE_KEY_SETTINGS);
+      } else if (Phaser.Input.Keyboard.JustDown(this.keyM)) {
+        this.scene.start(SCENE_KEY_MENU);
+      }
+      return;
+    }
+
+    if (Phaser.Input.Keyboard.JustDown(this.keyEsc)) {
+      this.isPaused = true;
+      this.pauseOverlay?.setVisible(true);
+      return;
+    }
+
     this.player.update();
     const body = this.player.getBody();
 
     if (this.checkDeathByFall(body)) {
+      this.soundManager.playDeath();
       this.scene.start(SCENE_KEY_GAME, { level: this.currentLevel });
       return;
     }
 
     if (this.checkGoalReached(body)) {
-      const nextLevel = this.currentLevel < LEVEL_MAX ? this.currentLevel + 1 : LEVEL_MIN;
-      this.scene.start(SCENE_KEY_GAME, { level: nextLevel });
+      this.soundManager.playGoal();
+      saveLastCompletedLevel(this.currentLevel);
+      if (this.currentLevel === LEVEL_MAX) {
+        this.scene.start(SCENE_KEY_WIN);
+      } else {
+        this.scene.start(SCENE_KEY_GAME, { level: this.currentLevel + 1 });
+      }
       return;
     }
   }
